@@ -1,1343 +1,1191 @@
-import React, { useState, useEffect } from 'react';
-import { Brain, Users, User, Trophy, Star, Play, Home, GamepadIcon, Lightbulb, Medal, Eye, EyeOff, MessageCircle, HelpCircle, CheckCircle, Shuffle, Clock, Target, Zap, Heart, RefreshCw, ArrowRight, ArrowLeft, Settings } from 'lucide-react';
+import React, { useState } from 'react';
+import { 
+  GamepadIcon, 
+  Users, 
+  User, 
+  Home, 
+  Trophy, 
+  Settings,
+  Moon,
+  Sun,
+  Play,
+  RotateCcw,
+  CheckCircle,
+  XCircle,
+  Shuffle,
+  Eye,
+  EyeOff,
+  Brain,
+  Calculator,
+  BookOpen,
+  Zap,
+  ArrowRight,
+  ArrowLeft,
+  Plus,
+  Minus
+} from 'lucide-react';
 
-// Game Components
-const GameCard = ({ title, description, icon: Icon, players, difficulty, onClick, featured = false, category }) => (
-  <div 
-    className={`group relative overflow-hidden rounded-2xl cursor-pointer transition-all duration-500 hover:scale-105 hover:shadow-2xl ${
-      featured 
-        ? 'bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500 md:col-span-2' 
-        : category === 'single'
-        ? 'bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600'
-        : 'bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-600'
-    }`}
-    onClick={onClick}
-  >
-    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/30 transition-all duration-300"></div>
-    <div className="relative p-4 md:p-8 text-white">
-      <div className="flex items-center gap-2 md:gap-4 mb-3 md:mb-4">
-        <div className={`p-2 md:p-3 rounded-xl bg-white/20 backdrop-blur-sm ${featured ? 'animate-pulse' : ''}`}>
-          <Icon size={window.innerWidth < 768 ? 24 : 32} />
-        </div>
-        {featured && (
-          <div className="bg-white/20 backdrop-blur-sm px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-bold animate-bounce">
-            مميز ⭐
-          </div>
-        )}
-        <div className="bg-white/20 backdrop-blur-sm px-2 md:px-3 py-1 rounded-full text-xs">
-          {category === 'single' ? '👤 فردي' : '👥 جماعي'}
-        </div>
-      </div>
-      <h3 className="text-lg md:text-2xl font-bold mb-2 md:mb-3">{title}</h3>
-      <p className="text-white/90 mb-4 md:mb-6 leading-relaxed text-sm md:text-base">{description}</p>
-      <div className="flex gap-2 md:gap-4 items-center">
-        <div className="flex items-center gap-1 md:gap-2 bg-white/20 backdrop-blur-sm rounded-lg px-2 md:px-3 py-1 md:py-2">
-          <Users size={14} />
-          <span className="text-xs md:text-sm">{players}</span>
-        </div>
-        <div className="flex items-center gap-1">
-          {[...Array(difficulty)].map((_, i) => (
-            <Star key={i} size={12} fill="currentColor" />
-          ))}
-        </div>
-      </div>
-    </div>
-    <div className="absolute bottom-2 md:bottom-4 right-2 md:right-4 bg-white/20 backdrop-blur-sm rounded-full p-2 md:p-3 group-hover:scale-110 transition-all duration-300">
-      <Play size={16} fill="currentColor" />
-    </div>
-  </div>
-);
+type GameType = 'individual' | 'group';
+type Page = 'home' | 'individual' | 'group' | 'leaderboard' | 'settings';
 
-// برا السالفة المحسنة
-const BaraSalfaGame = ({ onBack }) => {
-  const [gamePhase, setGamePhase] = useState('setup');
-  const [players, setPlayers] = useState(['']);
-  const [selectedCategories, setSelectedCategories] = useState([]);
-  const [currentWord, setCurrentWord] = useState('');
-  const [outsider, setOutsider] = useState('');
-  const [playerCards, setPlayerCards] = useState({});
-  const [currentCardIndex, setCurrentCardIndex] = useState(0);
-  const [showingCard, setShowingCard] = useState(false);
-  const [votes, setVotes] = useState({});
-  const [gameResult, setGameResult] = useState('');
+interface Player {
+  id: number;
+  name: string;
+  role?: string;
+  isAlive?: boolean;
+  revealed?: boolean;
+}
 
-  const categories = {
-    'حيوانات': ['أسد', 'فيل', 'قرد', 'نمر', 'دب', 'ذئب', 'ثعلب', 'أرنب', 'قط', 'كلب', 'حصان', 'بقرة', 'خروف', 'ماعز', 'دجاج'],
-    'طعام': ['كسكس', 'شوربة', 'خبز', 'لحم', 'سمك', 'أرز', 'مكرونة', 'سلطة', 'فواكه', 'خضار', 'حليب', 'جبن', 'زيتون', 'عسل', 'شاي'],
-    'مهن': ['طبيب', 'معلم', 'مهندس', 'طباخ', 'سائق', 'بناء', 'خياط', 'حلاق', 'بائع', 'شرطي', 'إطفائي', 'محامي', 'صحفي', 'فنان', 'موسيقي'],
-    'أماكن': ['مدرسة', 'مستشفى', 'مطعم', 'سوق', 'مسجد', 'بحر', 'جبل', 'حديقة', 'مكتبة', 'متحف', 'ملعب', 'مطار', 'محطة', 'فندق', 'بيت'],
-    'أشياء': ['سيارة', 'طائرة', 'قطار', 'كتاب', 'قلم', 'هاتف', 'تلفاز', 'كمبيوتر', 'كرة', 'ساعة', 'مفتاح', 'نظارة', 'حقيبة', 'كرسي', 'طاولة'],
-    'رياضة': ['كرة القدم', 'كرة السلة', 'تنس', 'سباحة', 'جري', 'ملاكمة', 'كاراتيه', 'جمباز', 'دراجة', 'تزلج', 'غوص', 'تسلق', 'يوغا', 'رقص', 'شطرنج']
-  };
+interface Question {
+  id: number;
+  text: string;
+  options: string[];
+  correctAnswer: number;
+}
 
-  const startGame = () => {
-    if (players.filter(p => p.trim()).length >= 3 && selectedCategories.length > 0) {
-      const activePlayers = players.filter(p => p.trim());
-      const allWords = selectedCategories.flatMap(cat => categories[cat]);
-      const randomWord = allWords[Math.floor(Math.random() * allWords.length)];
-      const randomOutsider = activePlayers[Math.floor(Math.random() * activePlayers.length)];
-      
-      setCurrentWord(randomWord);
-      setOutsider(randomOutsider);
-      
-      const cards = {};
-      activePlayers.forEach(player => {
-        cards[player] = player === randomOutsider ? 'دخيل' : randomWord;
-      });
-      
-      setPlayerCards(cards);
-      setCurrentCardIndex(0);
-      setShowingCard(false);
-      setGamePhase('cards');
+interface MathQuestion {
+  id: number;
+  text: string;
+  answer: number;
+}
+
+const App: React.FC = () => {
+  const [currentPage, setCurrentPage] = useState<Page>('home');
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  
+  // Individual games state
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [showResult, setShowResult] = useState(false);
+  const [score, setScore] = useState(0);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [currentIndividualGame, setCurrentIndividualGame] = useState<string>('');
+  const [mathAnswer, setMathAnswer] = useState('');
+  const [memorySequence, setMemorySequence] = useState<number[]>([]);
+  const [userSequence, setUserSequence] = useState<number[]>([]);
+  const [showingSequence, setShowingSequence] = useState(false);
+  const [memoryLevel, setMemoryLevel] = useState(1);
+  
+  // Group games state
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [newPlayerName, setNewPlayerName] = useState('');
+  const [gamePhase, setGamePhase] = useState<'setup' | 'playing' | 'finished'>('setup');
+  const [currentGame, setCurrentGame] = useState<string>('');
+  const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
+  const [showAllCards, setShowAllCards] = useState(false);
+  const [currentLetter, setCurrentLetter] = useState('');
+  const [categories] = useState(['جماد', 'نبات', 'حيوان', 'اسم', 'بلد', 'مهنة']);
+  const [currentCategory, setCurrentCategory] = useState(0);
+  const [gameTimer, setGameTimer] = useState(60);
+  const [timerActive, setTimerActive] = useState(false);
+
+  const questions: Question[] = [
+    {
+      id: 1,
+      text: "ما هي عاصمة تونس؟",
+      options: ["صفاقس", "تونس", "سوسة", "قابس"],
+      correctAnswer: 1
+    },
+    {
+      id: 2,
+      text: "كم عدد أيام السنة؟",
+      options: ["364", "365", "366", "367"],
+      correctAnswer: 1
+    },
+    {
+      id: 3,
+      text: "ما هو أكبر كوكب في المجموعة الشمسية؟",
+      options: ["الأرض", "المريخ", "المشتري", "زحل"],
+      correctAnswer: 2
+    },
+    {
+      id: 4,
+      text: "من هو مؤسس شركة مايكروسوفت؟",
+      options: ["ستيف جوبز", "بيل غيتس", "مارك زوكربيرغ", "إيلون ماسك"],
+      correctAnswer: 1
+    },
+    {
+      id: 5,
+      text: "كم عدد قارات العالم؟",
+      options: ["5", "6", "7", "8"],
+      correctAnswer: 2
     }
+  ];
+
+  const mathQuestions: MathQuestion[] = [
+    { id: 1, text: "15 + 27 = ?", answer: 42 },
+    { id: 2, text: "8 × 9 = ?", answer: 72 },
+    { id: 3, text: "144 ÷ 12 = ?", answer: 12 },
+    { id: 4, text: "25² = ?", answer: 625 },
+    { id: 5, text: "√64 = ?", answer: 8 }
+  ];
+
+  const loupGarouRoles = [
+    "ذئب", "قروي", "عراف", "طبيب", "صياد", "ساحرة", "حارس", "عمدة"
+  ];
+
+  const arabicLetters = [
+    'أ', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز', 'س', 'ش', 'ص', 'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق', 'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي'
+  ];
+
+  // Timer effect for letter game
+  React.useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (timerActive && gameTimer > 0) {
+      interval = setInterval(() => {
+        setGameTimer(prev => prev - 1);
+      }, 1000);
+    } else if (gameTimer === 0) {
+      setTimerActive(false);
+    }
+    return () => clearInterval(interval);
+  }, [timerActive, gameTimer]);
+
+  const handleAnswerSelect = (answerIndex: number) => {
+    setSelectedAnswer(answerIndex);
+    setShowResult(true);
+    
+    if (answerIndex === questions[currentQuestion].correctAnswer) {
+      setScore(score + 1);
+    }
+    
+    setTimeout(() => {
+      if (currentQuestion < questions.length - 1) {
+        setCurrentQuestion(currentQuestion + 1);
+        setSelectedAnswer(null);
+        setShowResult(false);
+      } else {
+        setGameStarted(false);
+        setCurrentQuestion(0);
+      }
+    }, 2000);
   };
 
-  const showNextCard = () => {
-    const playerNames = Object.keys(playerCards);
-    if (currentCardIndex < playerNames.length) {
-      setShowingCard(true);
+  const handleMathAnswer = () => {
+    const userAnswer = parseInt(mathAnswer);
+    const correct = userAnswer === mathQuestions[currentQuestion].answer;
+    
+    if (correct) {
+      setScore(score + 1);
+    }
+    
+    setShowResult(true);
+    setSelectedAnswer(correct ? 1 : 0);
+    
+    setTimeout(() => {
+      if (currentQuestion < mathQuestions.length - 1) {
+        setCurrentQuestion(currentQuestion + 1);
+        setMathAnswer('');
+        setShowResult(false);
+        setSelectedAnswer(null);
+      } else {
+        setGameStarted(false);
+        setCurrentQuestion(0);
+        setMathAnswer('');
+      }
+    }, 2000);
+  };
+
+  const generateMemorySequence = () => {
+    const sequence = [];
+    for (let i = 0; i < memoryLevel + 2; i++) {
+      sequence.push(Math.floor(Math.random() * 4));
+    }
+    setMemorySequence(sequence);
+    setUserSequence([]);
+    setShowingSequence(true);
+    
+    // Show sequence with delays
+    sequence.forEach((_, index) => {
       setTimeout(() => {
-        setShowingCard(false);
-        if (currentCardIndex === playerNames.length - 1) {
-          setGamePhase('playing');
-        } else {
-          setCurrentCardIndex(prev => prev + 1);
+        if (index === sequence.length - 1) {
+          setShowingSequence(false);
         }
-      }, 3000);
-    }
-  };
-
-  const startVoting = () => {
-    setGamePhase('voting');
-    setVotes({});
-  };
-
-  const vote = (voter, suspect) => {
-    setVotes(prev => ({
-      ...prev,
-      [voter]: suspect
-    }));
-  };
-
-  const revealResults = () => {
-    setGamePhase('reveal');
-    
-    const voteCount = {};
-    Object.values(votes).forEach(suspect => {
-      voteCount[suspect] = (voteCount[suspect] || 0) + 1;
+      }, (index + 1) * 800);
     });
+  };
+
+  const handleMemoryClick = (colorIndex: number) => {
+    if (showingSequence) return;
     
-    const mostVoted = Object.keys(voteCount).reduce((a, b) => 
-      voteCount[a] > voteCount[b] ? a : b
-    );
+    const newUserSequence = [...userSequence, colorIndex];
+    setUserSequence(newUserSequence);
     
-    if (mostVoted === outsider) {
-      setGameResult('فاز اللاعبون العاديون! تم اكتشاف الدخيل 🎉');
-    } else {
-      setGameResult('فاز الدخيل! لم يتم اكتشافه 🕵️');
+    // Check if sequence is correct so far
+    const isCorrect = newUserSequence.every((color, index) => color === memorySequence[index]);
+    
+    if (!isCorrect) {
+      // Wrong sequence
+      setShowResult(true);
+      setSelectedAnswer(0);
+      setTimeout(() => {
+        setGameStarted(false);
+        setMemoryLevel(1);
+      }, 2000);
+    } else if (newUserSequence.length === memorySequence.length) {
+      // Correct complete sequence
+      setScore(score + 1);
+      setMemoryLevel(memoryLevel + 1);
+      setShowResult(true);
+      setSelectedAnswer(1);
+      setTimeout(() => {
+        setShowResult(false);
+        generateMemorySequence();
+      }, 1500);
     }
+  };
+
+  const startIndividualGame = (gameType: string) => {
+    setCurrentIndividualGame(gameType);
+    setGameStarted(true);
+    setScore(0);
+    setCurrentQuestion(0);
+    setSelectedAnswer(null);
+    setShowResult(false);
+    setMathAnswer('');
+    setMemoryLevel(1);
+    
+    if (gameType === 'memory') {
+      generateMemorySequence();
+    }
+  };
+
+  const addPlayer = () => {
+    if (newPlayerName.trim()) {
+      setPlayers([...players, { id: Date.now(), name: newPlayerName.trim(), revealed: false }]);
+      setNewPlayerName('');
+    }
+  };
+
+  const removePlayer = (id: number) => {
+    setPlayers(players.filter(p => p.id !== id));
+  };
+
+  const startLoupGarou = () => {
+    if (players.length < 4) {
+      alert('يجب أن يكون هناك على الأقل 4 لاعبين');
+      return;
+    }
+    
+    const shuffledRoles = [...loupGarouRoles].sort(() => Math.random() - 0.5);
+    const updatedPlayers = players.map((player, index) => ({
+      ...player,
+      role: shuffledRoles[index % shuffledRoles.length],
+      isAlive: true,
+      revealed: false
+    }));
+    
+    setPlayers(updatedPlayers);
+    setGamePhase('playing');
+    setCurrentGame('loup-garou');
+    setCurrentPlayerIndex(0);
+  };
+
+  const startMakeshGame = () => {
+    if (players.length < 3) {
+      alert('يجب أن يكون هناك على الأقل 3 لاعبين');
+      return;
+    }
+    
+    const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
+    const outsider = shuffledPlayers[0];
+    const updatedPlayers = shuffledPlayers.map(player => ({
+      ...player,
+      role: player.id === outsider.id ? 'الغريب' : 'من الحومة',
+      revealed: false
+    }));
+    
+    setPlayers(updatedPlayers);
+    setGamePhase('playing');
+    setCurrentGame('makesh');
+    setCurrentPlayerIndex(0);
+  };
+
+  const startLetterGame = () => {
+    if (players.length < 2) {
+      alert('يجب أن يكون هناك على الأقل لاعبين');
+      return;
+    }
+    
+    const randomLetter = arabicLetters[Math.floor(Math.random() * arabicLetters.length)];
+    setCurrentLetter(randomLetter);
+    setCurrentCategory(0);
+    setGameTimer(60);
+    setGamePhase('playing');
+    setCurrentGame('letters');
+  };
+
+  const nextPlayer = () => {
+    if (currentPlayerIndex < players.length - 1) {
+      setCurrentPlayerIndex(currentPlayerIndex + 1);
+    } else {
+      setCurrentPlayerIndex(0);
+    }
+  };
+
+  const prevPlayer = () => {
+    if (currentPlayerIndex > 0) {
+      setCurrentPlayerIndex(currentPlayerIndex - 1);
+    } else {
+      setCurrentPlayerIndex(players.length - 1);
+    }
+  };
+
+  const togglePlayerReveal = (playerId: number) => {
+    setPlayers(players.map(player => 
+      player.id === playerId 
+        ? { ...player, revealed: !player.revealed }
+        : player
+    ));
   };
 
   const resetGame = () => {
+    setPlayers([]);
     setGamePhase('setup');
-    setPlayers(['']);
-    setSelectedCategories([]);
-    setCurrentWord('');
-    setOutsider('');
-    setPlayerCards({});
-    setCurrentCardIndex(0);
-    setShowingCard(false);
-    setVotes({});
-    setGameResult('');
+    setCurrentGame('');
+    setCurrentPlayerIndex(0);
+    setShowAllCards(false);
+    setCurrentLetter('');
+    setGameTimer(60);
+    setTimerActive(false);
   };
 
-  if (gamePhase === 'setup') {
+  const Button = ({ 
+    children, 
+    onClick, 
+    variant = 'primary', 
+    size = 'md',
+    disabled = false,
+    className = ''
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'outline' | 'glass';
+    size?: 'sm' | 'md' | 'lg';
+    disabled?: boolean;
+    className?: string;
+  }) => {
+    const baseClasses = "font-semibold rounded-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl backdrop-blur-sm";
+    
+    const variants = {
+      primary: "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-blue-500/25",
+      secondary: "bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white shadow-gray-500/25",
+      success: "bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-green-500/25",
+      danger: "bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white shadow-red-500/25",
+      outline: "border-2 border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white bg-white/10 backdrop-blur-sm",
+      glass: "bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20"
+    };
+    
+    const sizes = {
+      sm: "px-4 py-2 text-sm",
+      md: "px-6 py-3 text-base",
+      lg: "px-8 py-4 text-lg"
+    };
+    
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-teal-900">
-        <div className="container mx-auto px-4 md:px-6 py-4 md:py-8">
-          <button
-            onClick={onBack}
-            className="mb-4 md:mb-8 bg-white/20 backdrop-blur-sm text-white px-4 md:px-6 py-2 md:py-3 rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2 text-sm md:text-base"
-          >
-            <Home size={16} />
-            العودة للرئيسية
-          </button>
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${disabled ? 'opacity-50 cursor-not-allowed transform-none' : ''} ${className}`}
+      >
+        {children}
+      </button>
+    );
+  };
+
+  const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
+    <div className={`bg-white/10 dark:bg-gray-800/50 backdrop-blur-md rounded-3xl shadow-2xl p-6 transition-all duration-300 hover:shadow-3xl border border-white/20 dark:border-gray-700/50 ${className}`}>
+      {children}
+    </div>
+  );
+
+  const renderNavigation = () => (
+    <nav className="bg-white/10 dark:bg-gray-800/50 backdrop-blur-md shadow-lg border-b border-white/20 dark:border-gray-700/50 sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex justify-between items-center h-16">
+          <div className="flex items-center space-x-4 rtl:space-x-reverse">
+            <GamepadIcon className="w-8 h-8 text-blue-400" />
+            <h1 className="text-xl font-bold text-gray-800 dark:text-white">خمم فيها</h1>
+          </div>
           
-          <div className="max-w-2xl mx-auto bg-white/10 backdrop-blur-lg rounded-3xl p-4 md:p-8 border border-white/20">
-            <div className="text-center mb-6 md:mb-8">
-              <h1 className="text-2xl md:text-4xl font-bold text-white mb-2 md:mb-4">🕵️ برا السالفة</h1>
-              <p className="text-white/80 text-sm md:text-lg">اللعبة الجزائرية الأصيلة للذكاء والخداع</p>
-            </div>
+          <div className="hidden md:flex items-center space-x-6 rtl:space-x-reverse">
+            <button
+              onClick={() => setCurrentPage('home')}
+              className={`flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 rounded-xl transition-all duration-200 ${
+                currentPage === 'home' 
+                  ? 'bg-blue-500/20 text-blue-400 backdrop-blur-sm' 
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-white/10 backdrop-blur-sm'
+              }`}
+            >
+              <Home className="w-5 h-5" />
+              <span>الرئيسية</span>
+            </button>
             
-            <div className="space-y-4 md:space-y-6">
-              <div>
-                <h3 className="text-lg md:text-xl font-bold text-white mb-3 md:mb-4">اختر الفئات:</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
-                  {Object.keys(categories).map(category => (
-                    <button
-                      key={category}
-                      onClick={() => {
-                        if (selectedCategories.includes(category)) {
-                          setSelectedCategories(prev => prev.filter(c => c !== category));
-                        } else {
-                          setSelectedCategories(prev => [...prev, category]);
-                        }
-                      }}
-                      className={`p-2 md:p-3 rounded-xl font-bold transition-all duration-300 text-xs md:text-sm ${
-                        selectedCategories.includes(category)
-                          ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white'
-                          : 'bg-white/20 text-white hover:bg-white/30'
-                      }`}
-                    >
-                      {category}
-                    </button>
-                  ))}
+            <button
+              onClick={() => setCurrentPage('individual')}
+              className={`flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 rounded-xl transition-all duration-200 ${
+                currentPage === 'individual' 
+                  ? 'bg-blue-500/20 text-blue-400 backdrop-blur-sm' 
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-white/10 backdrop-blur-sm'
+              }`}
+            >
+              <User className="w-5 h-5" />
+              <span>ألعاب فردية</span>
+            </button>
+            
+            <button
+              onClick={() => setCurrentPage('group')}
+              className={`flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 rounded-xl transition-all duration-200 ${
+                currentPage === 'group' 
+                  ? 'bg-blue-500/20 text-blue-400 backdrop-blur-sm' 
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-white/10 backdrop-blur-sm'
+              }`}
+            >
+              <Users className="w-5 h-5" />
+              <span>ألعاب جماعية</span>
+            </button>
+            
+            <button
+              onClick={() => setCurrentPage('leaderboard')}
+              className={`flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 rounded-xl transition-all duration-200 ${
+                currentPage === 'leaderboard' 
+                  ? 'bg-blue-500/20 text-blue-400 backdrop-blur-sm' 
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-white/10 backdrop-blur-sm'
+              }`}
+            >
+              <Trophy className="w-5 h-5" />
+              <span>المتصدرين</span>
+            </button>
+            
+            <button
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className="p-2 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-white/10 backdrop-blur-sm transition-all duration-200"
+            >
+              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+          </div>
+
+          {/* Mobile menu */}
+          <div className="md:hidden flex items-center space-x-2 rtl:space-x-reverse">
+            <button
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className="p-2 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-white/10 backdrop-blur-sm transition-all duration-200"
+            >
+              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+          </div>
+        </div>
+        
+        {/* Mobile navigation */}
+        <div className="md:hidden pb-4">
+          <div className="flex justify-around">
+            <button
+              onClick={() => setCurrentPage('home')}
+              className={`flex flex-col items-center space-y-1 px-3 py-2 rounded-xl transition-all duration-200 ${
+                currentPage === 'home' 
+                  ? 'bg-blue-500/20 text-blue-400' 
+                  : 'text-gray-600 dark:text-gray-300'
+              }`}
+            >
+              <Home className="w-5 h-5" />
+              <span className="text-xs">الرئيسية</span>
+            </button>
+            
+            <button
+              onClick={() => setCurrentPage('individual')}
+              className={`flex flex-col items-center space-y-1 px-3 py-2 rounded-xl transition-all duration-200 ${
+                currentPage === 'individual' 
+                  ? 'bg-blue-500/20 text-blue-400' 
+                  : 'text-gray-600 dark:text-gray-300'
+              }`}
+            >
+              <User className="w-5 h-5" />
+              <span className="text-xs">فردية</span>
+            </button>
+            
+            <button
+              onClick={() => setCurrentPage('group')}
+              className={`flex flex-col items-center space-y-1 px-3 py-2 rounded-xl transition-all duration-200 ${
+                currentPage === 'group' 
+                  ? 'bg-blue-500/20 text-blue-400' 
+                  : 'text-gray-600 dark:text-gray-300'
+              }`}
+            >
+              <Users className="w-5 h-5" />
+              <span className="text-xs">جماعية</span>
+            </button>
+            
+            <button
+              onClick={() => setCurrentPage('leaderboard')}
+              className={`flex flex-col items-center space-y-1 px-3 py-2 rounded-xl transition-all duration-200 ${
+                currentPage === 'leaderboard' 
+                  ? 'bg-blue-500/20 text-blue-400' 
+                  : 'text-gray-600 dark:text-gray-300'
+              }`}
+            >
+              <Trophy className="w-5 h-5" />
+              <span className="text-xs">المتصدرين</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+
+  const renderHomePage = () => (
+    <div className="space-y-8">
+      <div className="text-center">
+        <h2 className="text-4xl md:text-5xl font-bold text-white mb-4 drop-shadow-lg">
+          مرحباً بك في منصة الألعاب الذكية
+        </h2>
+        <p className="text-xl text-white/80 mb-8 drop-shadow-md">
+          استمتع بمجموعة متنوعة من الألعاب الفردية والجماعية
+        </p>
+      </div>
+      
+      <div className="grid md:grid-cols-2 gap-8">
+        <Card className="text-center hover:scale-105 transition-transform duration-300">
+          <User className="w-16 h-16 text-blue-400 mx-auto mb-4" />
+          <h3 className="text-2xl font-bold text-white mb-4">ألعاب فردية</h3>
+          <p className="text-white/70 mb-6">
+            اختبر معلوماتك وذكاءك مع مجموعة من الأسئلة والتحديات المتنوعة
+          </p>
+          <Button onClick={() => setCurrentPage('individual')} size="lg" variant="glass">
+            ابدأ اللعب
+          </Button>
+        </Card>
+        
+        <Card className="text-center hover:scale-105 transition-transform duration-300">
+          <Users className="w-16 h-16 text-green-400 mx-auto mb-4" />
+          <h3 className="text-2xl font-bold text-white mb-4">ألعاب جماعية</h3>
+          <p className="text-white/70 mb-6">
+            العب مع الأصدقاء في ألعاب مثيرة مثل لعبة الذئب والقرية والأحرف الأولى
+          </p>
+          <Button onClick={() => setCurrentPage('group')} variant="success" size="lg">
+            العب مع الأصدقاء
+          </Button>
+        </Card>
+      </div>
+    </div>
+  );
+
+  const renderIndividualGames = () => (
+    <div className="space-y-8">
+      <div className="text-center">
+        <h2 className="text-3xl font-bold text-white mb-4 drop-shadow-lg">الألعاب الفردية</h2>
+        <p className="text-white/80 drop-shadow-md">اختبر معلوماتك وحقق أعلى النقاط</p>
+      </div>
+      
+      {!gameStarted ? (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Card className="text-center hover:scale-105 transition-transform duration-300">
+            <BookOpen className="w-12 h-12 text-blue-400 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-white mb-3">لعبة الأسئلة</h3>
+            <p className="text-white/70 mb-4 text-sm">
+              أجب على الأسئلة واحصل على أعلى نقاط ممكنة
+            </p>
+            <Button onClick={() => startIndividualGame('quiz')} className="w-full">
+              <Play className="w-4 h-4 ml-2" />
+              ابدأ اللعبة
+            </Button>
+          </Card>
+
+          <Card className="text-center hover:scale-105 transition-transform duration-300">
+            <Calculator className="w-12 h-12 text-green-400 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-white mb-3">لعبة الرياضيات</h3>
+            <p className="text-white/70 mb-4 text-sm">
+              حل المسائل الرياضية بأسرع وقت ممكن
+            </p>
+            <Button onClick={() => startIndividualGame('math')} variant="success" className="w-full">
+              <Play className="w-4 h-4 ml-2" />
+              ابدأ اللعبة
+            </Button>
+          </Card>
+
+          <Card className="text-center hover:scale-105 transition-transform duration-300">
+            <Brain className="w-12 h-12 text-purple-400 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-white mb-3">لعبة الذاكرة</h3>
+            <p className="text-white/70 mb-4 text-sm">
+              احفظ التسلسل وأعد تكراره بنفس الترتيب
+            </p>
+            <Button onClick={() => startIndividualGame('memory')} variant="outline" className="w-full">
+              <Play className="w-4 h-4 ml-2" />
+              ابدأ اللعبة
+            </Button>
+          </Card>
+        </div>
+      ) : (
+        <div className="max-w-4xl mx-auto">
+          {currentIndividualGame === 'quiz' && (
+            <Card>
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-sm font-medium text-white/70">
+                    السؤال {currentQuestion + 1} من {questions.length}
+                  </span>
+                  <span className="text-sm font-medium text-blue-400">
+                    النقاط: {score}
+                  </span>
+                </div>
+                <div className="w-full bg-white/20 rounded-full h-3 backdrop-blur-sm">
+                  <div 
+                    className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${((currentQuestion + 1) / questions.length) * 100}%` }}
+                  ></div>
                 </div>
               </div>
-
-              <div>
-                <h3 className="text-lg md:text-xl font-bold text-white mb-3 md:mb-4">أضف اللاعبين (3 على الأقل):</h3>
-                {players.map((player, index) => (
-                  <input
+              
+              <h3 className="text-2xl font-bold text-white mb-8 text-center">
+                {questions[currentQuestion].text}
+              </h3>
+              
+              <div className="grid gap-4">
+                {questions[currentQuestion].options.map((option, index) => (
+                  <button
                     key={index}
-                    type="text"
-                    value={player}
-                    onChange={(e) => {
-                      const newPlayers = [...players];
-                      newPlayers[index] = e.target.value;
-                      setPlayers(newPlayers);
-                    }}
-                    placeholder={`اللاعب ${index + 1}`}
-                    className="w-full p-3 md:p-4 mb-2 md:mb-3 rounded-xl bg-white/20 backdrop-blur-sm text-white placeholder-white/60 border border-white/30 focus:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/20 text-sm md:text-base"
-                  />
-                ))}
-                
-                <div className="flex gap-2 md:gap-4">
-                  <button
-                    onClick={() => setPlayers([...players, ''])}
-                    className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 md:py-4 rounded-xl font-bold hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105 text-sm md:text-base"
+                    onClick={() => handleAnswerSelect(index)}
+                    disabled={showResult}
+                    className={`p-4 rounded-2xl text-right transition-all duration-300 transform hover:scale-102 backdrop-blur-sm ${
+                      showResult
+                        ? index === questions[currentQuestion].correctAnswer
+                          ? 'bg-green-500/30 border-2 border-green-400 text-green-100 shadow-green-500/25'
+                          : selectedAnswer === index
+                          ? 'bg-red-500/30 border-2 border-red-400 text-red-100 shadow-red-500/25'
+                          : 'bg-white/10 text-white/50 border border-white/20'
+                        : 'bg-white/10 hover:bg-white/20 border border-white/20 hover:border-blue-400/50 text-white hover:shadow-lg'
+                    }`}
                   >
-                    إضافة لاعب
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{option}</span>
+                      {showResult && (
+                        <span className="ml-2">
+                          {index === questions[currentQuestion].correctAnswer ? (
+                            <CheckCircle className="w-6 h-6 text-green-400" />
+                          ) : selectedAnswer === index ? (
+                            <XCircle className="w-6 h-6 text-red-400" />
+                          ) : null}
+                        </span>
+                      )}
+                    </div>
                   </button>
-                  <button
-                    onClick={startGame}
-                    disabled={players.filter(p => p.trim()).length < 3 || selectedCategories.length === 0}
-                    className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 md:py-4 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:from-orange-600 hover:to-red-700 transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100 text-sm md:text-base"
-                  >
-                    ابدأ اللعبة 🚀
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (gamePhase === 'cards') {
-    const playerNames = Object.keys(playerCards);
-    const currentPlayer = playerNames[currentCardIndex];
-    
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-teal-900 flex items-center justify-center">
-        <div className="container mx-auto px-4 md:px-6 py-4 md:py-8">
-          <div className="max-w-md mx-auto text-center">
-            {!showingCard ? (
-              <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 md:p-8 border border-white/20">
-                <h2 className="text-xl md:text-2xl font-bold text-white mb-4 md:mb-6">دور {currentPlayer}</h2>
-                <p className="text-white/80 mb-6 md:mb-8 text-sm md:text-base">اضغط لرؤية بطاقتك</p>
-                <button
-                  onClick={showNextCard}
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 md:px-8 py-3 md:py-4 rounded-xl font-bold hover:from-blue-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 text-sm md:text-base"
-                >
-                  اكشف البطاقة 🎴
-                </button>
-              </div>
-            ) : (
-              <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 md:p-8 border border-white/20">
-                <h2 className="text-xl md:text-2xl font-bold text-white mb-4 md:mb-6">{currentPlayer}</h2>
-                <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl p-6 md:p-8 mb-4 md:mb-6 animate-pulse">
-                  <p className="text-2xl md:text-4xl font-bold text-gray-900">
-                    {playerCards[currentPlayer]}
-                  </p>
-                </div>
-                <p className="text-white/80 text-sm md:text-base">احفظ كلمتك جيداً... 3 ثوانٍ</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (gamePhase === 'playing') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-teal-900">
-        <div className="container mx-auto px-4 md:px-6 py-4 md:py-8">
-          <button
-            onClick={onBack}
-            className="mb-4 md:mb-8 bg-white/20 backdrop-blur-sm text-white px-4 md:px-6 py-2 md:py-3 rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2 text-sm md:text-base"
-          >
-            <Home size={16} />
-            العودة للرئيسية
-          </button>
-          
-          <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-6 md:mb-8">
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-2 md:mb-4">🎭 مرحلة النقاش</h2>
-              <p className="text-white/80 text-sm md:text-lg mb-4 md:mb-6">ناقش مع الآخرين واكتشف من هو الدخيل!</p>
-              <button
-                onClick={startVoting}
-                className="bg-gradient-to-r from-red-500 to-pink-600 text-white px-6 md:px-8 py-3 md:py-4 rounded-xl font-bold hover:from-red-600 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 text-sm md:text-base"
-              >
-                بدء التصويت 🗳️
-              </button>
-            </div>
-            
-            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 md:p-8 border border-white/20">
-              <h3 className="text-lg md:text-2xl font-bold text-white mb-4 md:mb-6 text-center">💬 نصائح اللعب</h3>
-              <div className="grid md:grid-cols-2 gap-4 md:gap-6">
-                <div className="space-y-3 md:space-y-4">
-                  <h4 className="text-base md:text-lg font-bold text-white">نصائح للاعبين العاديين:</h4>
-                  <ul className="text-white/80 space-y-1 md:space-y-2 text-sm md:text-base">
-                    <li>• اطرح أسئلة غامضة حول الكلمة</li>
-                    <li>• لاحظ من يبدو مرتبكاً أو يتجنب الإجابة</li>
-                    <li>• تعاون مع الآخرين لكشف الدخيل</li>
-                  </ul>
-                </div>
-                <div className="space-y-3 md:space-y-4">
-                  <h4 className="text-base md:text-lg font-bold text-white">نصائح للدخيل:</h4>
-                  <ul className="text-white/80 space-y-1 md:space-y-2 text-sm md:text-base">
-                    <li>• اطرح أسئلة عامة لتعرف الكلمة</li>
-                    <li>• تظاهر بأنك تعرف الكلمة</li>
-                    <li>• حاول توجيه الشك لآخرين</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (gamePhase === 'voting') {
-    const activePlayers = Object.keys(playerCards);
-    
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-teal-900">
-        <div className="container mx-auto px-4 md:px-6 py-4 md:py-8">
-          <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-6 md:mb-8">
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-2 md:mb-4">🗳️ مرحلة التصويت</h2>
-              <p className="text-white/80 text-sm md:text-lg mb-4 md:mb-6">صوت لمن تعتقد أنه الدخيل!</p>
-            </div>
-            
-            <div className="grid gap-4 md:gap-6 mb-6 md:mb-8">
-              {activePlayers.map((voter) => (
-                <div key={voter} className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 md:p-6 border border-white/20">
-                  <h3 className="text-lg md:text-xl font-bold text-white mb-3 md:mb-4 text-center">{voter}</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
-                    {activePlayers.filter(p => p !== voter).map((suspect) => (
-                      <button
-                        key={suspect}
-                        onClick={() => vote(voter, suspect)}
-                        className={`p-2 md:p-3 rounded-xl font-bold transition-all duration-300 text-xs md:text-sm ${
-                          votes[voter] === suspect
-                            ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white'
-                            : 'bg-white/20 text-white hover:bg-white/30'
-                        }`}
-                      >
-                        {suspect} {votes[voter] === suspect && '✓'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            <div className="text-center">
-              <button
-                onClick={revealResults}
-                disabled={Object.keys(votes).length < activePlayers.length}
-                className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 md:px-8 py-3 md:py-4 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100 text-sm md:text-base"
-              >
-                كشف النتائج 🎭
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (gamePhase === 'reveal') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-teal-900">
-        <div className="container mx-auto px-4 md:px-6 py-4 md:py-8">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 md:p-8 border border-white/20 mb-6 md:mb-8">
-              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 md:mb-6">🎉 انتهت اللعبة!</h2>
-              
-              <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl p-4 md:p-6 mb-4 md:mb-6">
-                <p className="text-lg md:text-2xl font-bold text-gray-900 mb-1 md:mb-2">الكلمة كانت:</p>
-                <p className="text-2xl md:text-3xl font-bold text-gray-900">{currentWord}</p>
-              </div>
-              
-              <div className="bg-gradient-to-r from-red-500 to-pink-600 rounded-2xl p-4 md:p-6 mb-4 md:mb-6">
-                <p className="text-lg md:text-xl font-bold text-white mb-1 md:mb-2">الدخيل كان:</p>
-                <p className="text-xl md:text-2xl font-bold text-white">{outsider}</p>
-              </div>
-              
-              <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-4 md:p-6 mb-6 md:mb-8">
-                <p className="text-lg md:text-2xl font-bold text-white">{gameResult}</p>
-              </div>
-              
-              <div className="flex gap-2 md:gap-4">
-                <button
-                  onClick={resetGame}
-                  className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white py-3 md:py-4 rounded-xl font-bold hover:from-blue-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 text-sm md:text-base"
-                >
-                  لعبة جديدة 🎮
-                </button>
-                <button
-                  onClick={onBack}
-                  className="flex-1 bg-gradient-to-r from-gray-500 to-gray-600 text-white py-3 md:py-4 rounded-xl font-bold hover:from-gray-600 hover:to-gray-700 transition-all duration-300 transform hover:scale-105 text-sm md:text-base"
-                >
-                  العودة للرئيسية 🏠
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-};
-
-// لعبة الحروف المحسنة
-const LetterGame = ({ onBack }) => {
-  const [currentLetter, setCurrentLetter] = useState('');
-  const [answers, setAnswers] = useState({ name: '', animal: '', object: '', place: '' });
-  const [score, setScore] = useState(0);
-  const [gameStarted, setGameStarted] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(60);
-  const [gameActive, setGameActive] = useState(false);
-
-  const arabicLetters = ['أ', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز', 'س', 'ش', 'ص', 'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق', 'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي'];
-
-  useEffect(() => {
-    let timer;
-    if (gameActive && timeLeft > 0) {
-      timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
-    } else if (timeLeft === 0) {
-      submitAnswers();
-    }
-    return () => clearTimeout(timer);
-  }, [gameActive, timeLeft]);
-
-  const startGame = () => {
-    const randomLetter = arabicLetters[Math.floor(Math.random() * arabicLetters.length)];
-    setCurrentLetter(randomLetter);
-    setGameStarted(true);
-    setGameActive(true);
-    setTimeLeft(60);
-    setAnswers({ name: '', animal: '', object: '', place: '' });
-  };
-
-  const submitAnswers = () => {
-    setGameActive(false);
-    let points = 0;
-    Object.values(answers).forEach(answer => {
-      if (answer.trim() && answer.trim().startsWith(currentLetter)) {
-        points += 10;
-      }
-    });
-    setScore(prev => prev + points);
-    setTimeout(() => {
-      alert(`حصلت على ${points} نقطة! الوقت انتهى.`);
-      startGame();
-    }, 100);
-  };
-
-  const updateAnswer = (category, value) => {
-    setAnswers(prev => ({ ...prev, [category]: value }));
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-green-900 via-teal-900 to-blue-900">
-      <div className="container mx-auto px-4 md:px-6 py-4 md:py-8">
-        <button
-          onClick={onBack}
-          className="mb-4 md:mb-8 bg-white/20 backdrop-blur-sm text-white px-4 md:px-6 py-2 md:py-3 rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2 text-sm md:text-base"
-        >
-          <Home size={16} />
-          العودة للرئيسية
-        </button>
-        
-        <div className="max-w-2xl mx-auto bg-white/10 backdrop-blur-lg rounded-3xl p-4 md:p-8 border border-white/20">
-          <div className="text-center mb-6 md:mb-8">
-            <h1 className="text-2xl md:text-4xl font-bold text-white mb-2 md:mb-4">📝 حرف - اسم - حيوان - جماد - بلاد</h1>
-            <div className="flex items-center justify-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2">
-                <Medal className="text-yellow-400" size={20} />
-                <span className="text-lg md:text-xl font-bold text-white">النقاط: {score}</span>
-              </div>
-              {gameActive && (
-                <div className="flex items-center gap-2">
-                  <Clock className="text-red-400" size={20} />
-                  <span className="text-lg md:text-xl font-bold text-white">{timeLeft}s</span>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          {!gameStarted ? (
-            <div className="text-center">
-              <button
-                onClick={startGame}
-                className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 md:px-8 py-3 md:py-4 rounded-xl text-lg md:text-xl font-bold hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105"
-              >
-                ابدأ اللعبة 🎯
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4 md:space-y-6">
-              <div className="text-center">
-                <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl p-4 md:p-6 mb-4 md:mb-6">
-                  <h2 className="text-3xl md:text-4xl font-bold text-gray-900">الحرف: {currentLetter}</h2>
-                </div>
-              </div>
-              
-              <div className="space-y-3 md:space-y-4">
-                {[
-                  { key: 'name', label: 'اسم إنسان', icon: '👤' },
-                  { key: 'animal', label: 'حيوان', icon: '🐾' },
-                  { key: 'object', label: 'جماد', icon: '📦' },
-                  { key: 'place', label: 'بلد أو مكان', icon: '🏙️' }
-                ].map(({ key, label, icon }) => (
-                  <div key={key} className="space-y-2">
-                    <label className="text-white font-bold flex items-center gap-2 text-sm md:text-base">
-                      <span>{icon}</span>
-                      {label}
-                    </label>
-                    <input
-                      type="text"
-                      value={answers[key]}
-                      onChange={(e) => updateAnswer(key, e.target.value)}
-                      disabled={!gameActive}
-                      className="w-full p-3 md:p-4 rounded-xl bg-white/20 backdrop-blur-sm text-white placeholder-white/60 border border-white/30 focus:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-50 text-sm md:text-base"
-                      placeholder={`${label} يبدأ بحرف ${currentLetter}`}
-                    />
-                  </div>
                 ))}
               </div>
-              
-              <button
-                onClick={submitAnswers}
-                disabled={!gameActive}
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 md:py-4 rounded-xl font-bold hover:from-purple-700 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 text-sm md:text-base"
-              >
-                إرسال الإجابات ✨
-              </button>
-            </div>
+            </Card>
           )}
-        </div>
-      </div>
-    </div>
-  );
-};
 
-// لعبة الألغاز
-const RiddlesGame = ({ onBack }) => {
-  const [currentRiddle, setCurrentRiddle] = useState(null);
-  const [userAnswer, setUserAnswer] = useState('');
-  const [score, setScore] = useState(0);
-  const [showAnswer, setShowAnswer] = useState(false);
-  const [riddleIndex, setRiddleIndex] = useState(0);
-
-  const riddles = [
-    { question: 'ما هو الشيء الذي يمشي بلا أرجل ويبكي بلا عيون؟', answer: 'السحاب' },
-    { question: 'ما هو الشيء الذي له رأس ولا يفكر؟', answer: 'الدبوس' },
-    { question: 'ما هو الشيء الذي يأكل ولا يشبع؟', answer: 'النار' },
-    { question: 'ما هو الشيء الذي يكتب ولا يقرأ؟', answer: 'القلم' },
-    { question: 'ما هو الشيء الذي له عين واحدة ولا يرى؟', answer: 'الإبرة' },
-    { question: 'ما هو الشيء الذي يجري ولا يمشي؟', answer: 'الماء' },
-    { question: 'ما هو الشيء الذي يطير بلا جناح؟', answer: 'الوقت' },
-    { question: 'ما هو الشيء الذي يقرص ولا يعض؟', answer: 'الجوع' },
-    { question: 'ما هو الشيء الذي له أسنان ولا يأكل؟', answer: 'المشط' },
-    { question: 'ما هو الشيء الذي يسمع بلا أذن ويتكلم بلا لسان؟', answer: 'الهاتف' }
-  ];
-
-  const startGame = () => {
-    setCurrentRiddle(riddles[riddleIndex]);
-    setUserAnswer('');
-    setShowAnswer(false);
-  };
-
-  const checkAnswer = () => {
-    if (userAnswer.trim().toLowerCase() === currentRiddle.answer.toLowerCase()) {
-      setScore(prev => prev + 10);
-      alert('إجابة صحيحة! +10 نقاط 🎉');
-    } else {
-      alert(`إجابة خاطئة. الإجابة الصحيحة: ${currentRiddle.answer}`);
-    }
-    nextRiddle();
-  };
-
-  const nextRiddle = () => {
-    const nextIndex = (riddleIndex + 1) % riddles.length;
-    setRiddleIndex(nextIndex);
-    setCurrentRiddle(riddles[nextIndex]);
-    setUserAnswer('');
-    setShowAnswer(false);
-  };
-
-  const showCorrectAnswer = () => {
-    setShowAnswer(true);
-  };
-
-  useEffect(() => {
-    startGame();
-  }, []);
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
-      <div className="container mx-auto px-4 md:px-6 py-4 md:py-8">
-        <button
-          onClick={onBack}
-          className="mb-4 md:mb-8 bg-white/20 backdrop-blur-sm text-white px-4 md:px-6 py-2 md:py-3 rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2 text-sm md:text-base"
-        >
-          <Home size={16} />
-          العودة للرئيسية
-        </button>
-        
-        <div className="max-w-2xl mx-auto bg-white/10 backdrop-blur-lg rounded-3xl p-4 md:p-8 border border-white/20">
-          <div className="text-center mb-6 md:mb-8">
-            <h1 className="text-2xl md:text-4xl font-bold text-white mb-2 md:mb-4">🧩 ألغاز الحومة</h1>
-            <div className="flex items-center justify-center gap-4">
-              <Medal className="text-yellow-400" size={20} />
-              <span className="text-lg md:text-xl font-bold text-white">النقاط: {score}</span>
-            </div>
-          </div>
-          
-          {currentRiddle && (
-            <div className="space-y-4 md:space-y-6">
-              <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl p-4 md:p-6">
-                <h2 className="text-lg md:text-xl font-bold text-white mb-3 md:mb-4">اللغز:</h2>
-                <p className="text-white text-base md:text-lg leading-relaxed">{currentRiddle.question}</p>
+          {currentIndividualGame === 'math' && (
+            <Card>
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-sm font-medium text-white/70">
+                    السؤال {currentQuestion + 1} من {mathQuestions.length}
+                  </span>
+                  <span className="text-sm font-medium text-green-400">
+                    النقاط: {score}
+                  </span>
+                </div>
+                <div className="w-full bg-white/20 rounded-full h-3 backdrop-blur-sm">
+                  <div 
+                    className="bg-gradient-to-r from-green-500 to-emerald-600 h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${((currentQuestion + 1) / mathQuestions.length) * 100}%` }}
+                  ></div>
+                </div>
               </div>
               
-              {!showAnswer ? (
-                <div className="space-y-3 md:space-y-4">
-                  <input
-                    type="text"
-                    value={userAnswer}
-                    onChange={(e) => setUserAnswer(e.target.value)}
-                    placeholder="اكتب إجابتك هنا..."
-                    className="w-full p-3 md:p-4 rounded-xl bg-white/20 backdrop-blur-sm text-white placeholder-white/60 border border-white/30 focus:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/20 text-sm md:text-base"
-                    onKeyPress={(e) => e.key === 'Enter' && checkAnswer()}
-                  />
-                  
-                  <div className="flex gap-2 md:gap-4">
-                    <button
-                      onClick={checkAnswer}
-                      className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 md:py-4 rounded-xl font-bold hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105 text-sm md:text-base"
-                    >
-                      تحقق من الإجابة ✓
-                    </button>
-                    <button
-                      onClick={showCorrectAnswer}
-                      className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 md:py-4 rounded-xl font-bold hover:from-orange-600 hover:to-red-700 transition-all duration-300 transform hover:scale-105 text-sm md:text-base"
-                    >
-                      أظهر الإجابة 💡
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3 md:space-y-4">
-                  <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl p-4 md:p-6">
-                    <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-2">الإجابة الصحيحة:</h3>
-                    <p className="text-xl md:text-2xl font-bold text-gray-900">{currentRiddle.answer}</p>
-                  </div>
-                  
-                  <button
-                    onClick={nextRiddle}
-                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 md:py-4 rounded-xl font-bold hover:from-purple-700 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 text-sm md:text-base"
-                  >
-                    اللغز التالي 🔄
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// لعبة الذاكرة
-const MemoryGame = ({ onBack }) => {
-  const [cards, setCards] = useState([]);
-  const [flippedCards, setFlippedCards] = useState([]);
-  const [matchedCards, setMatchedCards] = useState([]);
-  const [moves, setMoves] = useState(0);
-  const [gameStarted, setGameStarted] = useState(false);
-  const [gameWon, setGameWon] = useState(false);
-
-  const emojis = ['🎮', '🎯', '🎲', '🎪', '🎨', '🎭', '🎸', '🎺'];
-
-  const initializeGame = () => {
-    const gameCards = [...emojis, ...emojis]
-      .sort(() => Math.random() - 0.5)
-      .map((emoji, index) => ({ id: index, emoji, flipped: false }));
-    
-    setCards(gameCards);
-    setFlippedCards([]);
-    setMatchedCards([]);
-    setMoves(0);
-    setGameStarted(true);
-    setGameWon(false);
-  };
-
-  const flipCard = (cardId) => {
-    if (flippedCards.length === 2 || flippedCards.includes(cardId) || matchedCards.includes(cardId)) {
-      return;
-    }
-
-    const newFlippedCards = [...flippedCards, cardId];
-    setFlippedCards(newFlippedCards);
-
-    if (newFlippedCards.length === 2) {
-      setMoves(prev => prev + 1);
-      const [firstCard, secondCard] = newFlippedCards;
-      const firstEmoji = cards.find(card => card.id === firstCard)?.emoji;
-      const secondEmoji = cards.find(card => card.id === secondCard)?.emoji;
-
-      if (firstEmoji === secondEmoji) {
-        setMatchedCards(prev => [...prev, firstCard, secondCard]);
-        setFlippedCards([]);
-        
-        if (matchedCards.length + 2 === cards.length) {
-          setGameWon(true);
-        }
-      } else {
-        setTimeout(() => {
-          setFlippedCards([]);
-        }, 1000);
-      }
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-900 via-purple-900 to-indigo-900">
-      <div className="container mx-auto px-4 md:px-6 py-4 md:py-8">
-        <button
-          onClick={onBack}
-          className="mb-4 md:mb-8 bg-white/20 backdrop-blur-sm text-white px-4 md:px-6 py-2 md:py-3 rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2 text-sm md:text-base"
-        >
-          <Home size={16} />
-          العودة للرئيسية
-        </button>
-        
-        <div className="max-w-2xl mx-auto bg-white/10 backdrop-blur-lg rounded-3xl p-4 md:p-8 border border-white/20">
-          <div className="text-center mb-6 md:mb-8">
-            <h1 className="text-2xl md:text-4xl font-bold text-white mb-2 md:mb-4">🧠 ذاكرة الأبطال</h1>
-            {gameStarted && (
-              <div className="flex items-center justify-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Target className="text-blue-400" size={20} />
-                  <span className="text-lg font-bold text-white">الحركات: {moves}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Trophy className="text-yellow-400" size={20} />
-                  <span className="text-lg font-bold text-white">المطابقات: {matchedCards.length / 2}/{emojis.length}</span>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {!gameStarted ? (
-            <div className="text-center">
-              <p className="text-white/80 mb-6 text-sm md:text-base">اقلب البطاقات وابحث عن الأزواج المتطابقة!</p>
-              <button
-                onClick={initializeGame}
-                className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 md:px-8 py-3 md:py-4 rounded-xl text-lg md:text-xl font-bold hover:from-pink-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105"
-              >
-                ابدأ اللعبة 🚀
-              </button>
-            </div>
-          ) : gameWon ? (
-            <div className="text-center space-y-4 md:space-y-6">
-              <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl p-4 md:p-6">
-                <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">🎉 مبروك!</h2>
-                <p className="text-lg md:text-xl font-bold text-gray-900">أنهيت اللعبة في {moves} حركة!</p>
-              </div>
-              <button
-                onClick={initializeGame}
-                className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 md:px-8 py-3 md:py-4 rounded-xl font-bold hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105 text-sm md:text-base"
-              >
-                لعبة جديدة 🔄
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-4 gap-2 md:gap-4">
-              {cards.map((card) => (
-                <div
-                  key={card.id}
-                  onClick={() => flipCard(card.id)}
-                  className={`aspect-square rounded-xl cursor-pointer transition-all duration-300 flex items-center justify-center text-2xl md:text-4xl font-bold ${
-                    flippedCards.includes(card.id) || matchedCards.includes(card.id)
-                      ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-gray-900'
-                      : 'bg-gradient-to-r from-gray-600 to-gray-700 text-white hover:from-gray-500 hover:to-gray-600'
-                  }`}
-                >
-                  {flippedCards.includes(card.id) || matchedCards.includes(card.id) ? card.emoji : '?'}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// لعبة الرياضيات السريعة
-const MathGame = ({ onBack }) => {
-  const [question, setQuestion] = useState('');
-  const [answer, setAnswer] = useState('');
-  const [userAnswer, setUserAnswer] = useState('');
-  const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(30);
-  const [gameActive, setGameActive] = useState(false);
-  const [level, setLevel] = useState(1);
-
-  useEffect(() => {
-    let timer;
-    if (gameActive && timeLeft > 0) {
-      timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
-    } else if (timeLeft === 0) {
-      endGame();
-    }
-    return () => clearTimeout(timer);
-  }, [gameActive, timeLeft]);
-
-  const generateQuestion = () => {
-    let num1, num2, operation, correctAnswer;
-    
-    if (level === 1) {
-      num1 = Math.floor(Math.random() * 10) + 1;
-      num2 = Math.floor(Math.random() * 10) + 1;
-      operation = Math.random() > 0.5 ? '+' : '-';
-    } else if (level === 2) {
-      num1 = Math.floor(Math.random() * 20) + 1;
-      num2 = Math.floor(Math.random() * 20) + 1;
-      operation = ['+', '-', '×'][Math.floor(Math.random() * 3)];
-    } else {
-      num1 = Math.floor(Math.random() * 50) + 1;
-      num2 = Math.floor(Math.random() * 50) + 1;
-      operation = ['+', '-', '×', '÷'][Math.floor(Math.random() * 4)];
-    }
-
-    switch (operation) {
-      case '+':
-        correctAnswer = num1 + num2;
-        break;
-      case '-':
-        correctAnswer = num1 - num2;
-        break;
-      case '×':
-        correctAnswer = num1 * num2;
-        break;
-      case '÷':
-        correctAnswer = Math.floor(num1 / num2);
-        num1 = correctAnswer * num2; // Ensure clean division
-        break;
-    }
-
-    setQuestion(`${num1} ${operation} ${num2} = ?`);
-    setAnswer(correctAnswer.toString());
-  };
-
-  const startGame = () => {
-    setGameActive(true);
-    setTimeLeft(30);
-    setScore(0);
-    generateQuestion();
-  };
-
-  const checkAnswer = () => {
-    if (userAnswer === answer) {
-      setScore(prev => prev + (level * 10));
-      if (score > 0 && score % 50 === 0) {
-        setLevel(prev => Math.min(prev + 1, 3));
-      }
-    }
-    setUserAnswer('');
-    generateQuestion();
-  };
-
-  const endGame = () => {
-    setGameActive(false);
-    alert(`انتهت اللعبة! نقاطك النهائية: ${score}`);
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900">
-      <div className="container mx-auto px-4 md:px-6 py-4 md:py-8">
-        <button
-          onClick={onBack}
-          className="mb-4 md:mb-8 bg-white/20 backdrop-blur-sm text-white px-4 md:px-6 py-2 md:py-3 rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2 text-sm md:text-base"
-        >
-          <Home size={16} />
-          العودة للرئيسية
-        </button>
-        
-        <div className="max-w-2xl mx-auto bg-white/10 backdrop-blur-lg rounded-3xl p-4 md:p-8 border border-white/20">
-          <div className="text-center mb-6 md:mb-8">
-            <h1 className="text-2xl md:text-4xl font-bold text-white mb-2 md:mb-4">🔢 الرياضيات السريعة</h1>
-            <div className="flex items-center justify-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2">
-                <Trophy className="text-yellow-400" size={20} />
-                <span className="text-lg font-bold text-white">النقاط: {score}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Star className="text-blue-400" size={20} />
-                <span className="text-lg font-bold text-white">المستوى: {level}</span>
-              </div>
-              {gameActive && (
-                <div className="flex items-center gap-2">
-                  <Clock className="text-red-400" size={20} />
-                  <span className="text-lg font-bold text-white">{timeLeft}s</span>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          {!gameActive ? (
-            <div className="text-center">
-              <p className="text-white/80 mb-6 text-sm md:text-base">حل أكبر عدد من المسائل الرياضية في 30 ثانية!</p>
-              <button
-                onClick={startGame}
-                className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 md:px-8 py-3 md:py-4 rounded-xl text-lg md:text-xl font-bold hover:from-blue-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105"
-              >
-                ابدأ اللعبة ⚡
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4 md:space-y-6">
-              <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl p-4 md:p-6 text-center">
-                <h2 className="text-2xl md:text-4xl font-bold text-gray-900">{question}</h2>
-              </div>
+              <h3 className="text-3xl font-bold text-white mb-8 text-center">
+                {mathQuestions[currentQuestion].text}
+              </h3>
               
-              <div className="space-y-3 md:space-y-4">
+              <div className="flex flex-col items-center space-y-6">
                 <input
                   type="number"
-                  value={userAnswer}
-                  onChange={(e) => setUserAnswer(e.target.value)}
-                  placeholder="اكتب الإجابة..."
-                  className="w-full p-3 md:p-4 rounded-xl bg-white/20 backdrop-blur-sm text-white placeholder-white/60 border border-white/30 focus:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/20 text-center text-xl md:text-2xl font-bold"
-                  onKeyPress={(e) => e.key === 'Enter' && checkAnswer()}
-                  autoFocus
+                  value={mathAnswer}
+                  onChange={(e) => setMathAnswer(e.target.value)}
+                  placeholder="أدخل الإجابة"
+                  className="w-full max-w-xs px-6 py-4 text-2xl text-center bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl text-white placeholder-white/50 focus:ring-2 focus:ring-green-400 focus:border-transparent"
+                  disabled={showResult}
+                  onKeyPress={(e) => e.key === 'Enter' && !showResult && mathAnswer && handleMathAnswer()}
                 />
                 
-                <button
-                  onClick={checkAnswer}
-                  className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 md:py-4 rounded-xl font-bold hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105 text-sm md:text-base"
-                >
-                  إرسال الإجابة ✓
-                </button>
+                {!showResult && (
+                  <Button 
+                    onClick={handleMathAnswer} 
+                    disabled={!mathAnswer}
+                    variant="success"
+                    size="lg"
+                  >
+                    تأكيد الإجابة
+                  </Button>
+                )}
+                
+                {showResult && (
+                  <div className={`text-center p-4 rounded-2xl backdrop-blur-sm ${
+                    selectedAnswer === 1 
+                      ? 'bg-green-500/20 border border-green-400/50' 
+                      : 'bg-red-500/20 border border-red-400/50'
+                  }`}>
+                    <div className="flex items-center justify-center space-x-2 rtl:space-x-reverse">
+                      {selectedAnswer === 1 ? (
+                        <CheckCircle className="w-8 h-8 text-green-400" />
+                      ) : (
+                        <XCircle className="w-8 h-8 text-red-400" />
+                      )}
+                      <span className={`text-xl font-bold ${
+                        selectedAnswer === 1 ? 'text-green-100' : 'text-red-100'
+                      }`}>
+                        {selectedAnswer === 1 ? 'إجابة صحيحة!' : `الإجابة الصحيحة: ${mathQuestions[currentQuestion].answer}`}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            </Card>
+          )}
+
+          {currentIndividualGame === 'memory' && (
+            <Card>
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-sm font-medium text-white/70">
+                    المستوى: {memoryLevel}
+                  </span>
+                  <span className="text-sm font-medium text-purple-400">
+                    النقاط: {score}
+                  </span>
+                </div>
+              </div>
+              
+              <h3 className="text-2xl font-bold text-white mb-8 text-center">
+                {showingSequence ? 'احفظ التسلسل...' : 'أعد التسلسل بنفس الترتيب'}
+              </h3>
+              
+              <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+                {[0, 1, 2, 3].map((colorIndex) => (
+                  <button
+                    key={colorIndex}
+                    onClick={() => handleMemoryClick(colorIndex)}
+                    className={`h-24 rounded-2xl transition-all duration-300 transform hover:scale-105 ${
+                      showingSequence && memorySequence[Math.floor(Date.now() / 800) % memorySequence.length] === colorIndex
+                        ? 'scale-110 shadow-2xl'
+                        : ''
+                    } ${
+                      colorIndex === 0 ? 'bg-red-500 hover:bg-red-400' :
+                      colorIndex === 1 ? 'bg-blue-500 hover:bg-blue-400' :
+                      colorIndex === 2 ? 'bg-green-500 hover:bg-green-400' :
+                      'bg-yellow-500 hover:bg-yellow-400'
+                    }`}
+                    disabled={showingSequence}
+                  />
+                ))}
+              </div>
+              
+              {showResult && (
+                <div className={`mt-6 text-center p-4 rounded-2xl backdrop-blur-sm ${
+                  selectedAnswer === 1 
+                    ? 'bg-green-500/20 border border-green-400/50' 
+                    : 'bg-red-500/20 border border-red-400/50'
+                }`}>
+                  <div className="flex items-center justify-center space-x-2 rtl:space-x-reverse">
+                    {selectedAnswer === 1 ? (
+                      <CheckCircle className="w-8 h-8 text-green-400" />
+                    ) : (
+                      <XCircle className="w-8 h-8 text-red-400" />
+                    )}
+                    <span className={`text-xl font-bold ${
+                      selectedAnswer === 1 ? 'text-green-100' : 'text-red-100'
+                    }`}>
+                      {selectedAnswer === 1 ? 'ممتاز! المستوى التالي...' : 'خطأ! حاول مرة أخرى'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </Card>
           )}
         </div>
-      </div>
+      )}
+      
+      {score > 0 && !gameStarted && (
+        <Card className="max-w-md mx-auto text-center">
+          <Trophy className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
+          <h3 className="text-2xl font-bold text-white mb-2">انتهت اللعبة!</h3>
+          <p className="text-white/70 mb-4">
+            نتيجتك النهائية: {score} من {
+              currentIndividualGame === 'quiz' ? questions.length :
+              currentIndividualGame === 'math' ? mathQuestions.length :
+              memoryLevel - 1
+            }
+          </p>
+          <Button onClick={() => setScore(0)} variant="glass">
+            العب مرة أخرى
+          </Button>
+        </Card>
+      )}
     </div>
   );
-};
 
-// لعبة تخمين الكلمة
-const WordGuessGame = ({ onBack }) => {
-  const [currentWord, setCurrentWord] = useState('');
-  const [guessedLetters, setGuessedLetters] = useState([]);
-  const [wrongGuesses, setWrongGuesses] = useState(0);
-  const [gameWon, setGameWon] = useState(false);
-  const [gameLost, setGameLost] = useState(false);
-  const [score, setScore] = useState(0);
-
-  const words = [
-    'جزائر', 'وهران', 'قسنطينة', 'عنابة', 'تلمسان', 'بجاية', 'سطيف', 'باتنة',
-    'كسكس', 'شوربة', 'بوراك', 'مقروض', 'قلب اللوز', 'زلابية', 'شباكية',
-    'صحراء', 'أطلس', 'متوسط', 'تاسيلي', 'هقار', 'شيليا', 'جرجرة'
-  ];
-
-  const maxWrongGuesses = 6;
-
-  const startNewGame = () => {
-    const randomWord = words[Math.floor(Math.random() * words.length)];
-    setCurrentWord(randomWord);
-    setGuessedLetters([]);
-    setWrongGuesses(0);
-    setGameWon(false);
-    setGameLost(false);
-  };
-
-  const guessLetter = (letter) => {
-    if (guessedLetters.includes(letter) || gameWon || gameLost) return;
-
-    const newGuessedLetters = [...guessedLetters, letter];
-    setGuessedLetters(newGuessedLetters);
-
-    if (!currentWord.includes(letter)) {
-      const newWrongGuesses = wrongGuesses + 1;
-      setWrongGuesses(newWrongGuesses);
+  const renderGroupGames = () => (
+    <div className="space-y-8">
+      <div className="text-center">
+        <h2 className="text-3xl font-bold text-white mb-4 drop-shadow-lg">الألعاب الجماعية</h2>
+        <p className="text-white/80 drop-shadow-md">العب مع الأصدقاء واستمتع بوقتك</p>
+      </div>
       
-      if (newWrongGuesses >= maxWrongGuesses) {
-        setGameLost(true);
-      }
-    } else {
-      // Check if word is complete
-      const wordComplete = currentWord.split('').every(char => newGuessedLetters.includes(char));
-      if (wordComplete) {
-        setGameWon(true);
-        setScore(prev => prev + (currentWord.length * 10));
-      }
-    }
-  };
-
-  const displayWord = () => {
-    return currentWord.split('').map(letter => 
-      guessedLetters.includes(letter) ? letter : '_'
-    ).join(' ');
-  };
-
-  const arabicLetters = ['أ', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز', 'س', 'ش', 'ص', 'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق', 'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي'];
-
-  useEffect(() => {
-    startNewGame();
-  }, []);
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-900 via-green-900 to-emerald-900">
-      <div className="container mx-auto px-4 md:px-6 py-4 md:py-8">
-        <button
-          onClick={onBack}
-          className="mb-4 md:mb-8 bg-white/20 backdrop-blur-sm text-white px-4 md:px-6 py-2 md:py-3 rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2 text-sm md:text-base"
-        >
-          <Home size={16} />
-          العودة للرئيسية
-        </button>
-        
-        <div className="max-w-2xl mx-auto bg-white/10 backdrop-blur-lg rounded-3xl p-4 md:p-8 border border-white/20">
-          <div className="text-center mb-6 md:mb-8">
-            <h1 className="text-2xl md:text-4xl font-bold text-white mb-2 md:mb-4">🔤 تخمين الكلمة</h1>
-            <div className="flex items-center justify-center gap-4">
-              <div className="flex items-center gap-2">
-                <Trophy className="text-yellow-400" size={20} />
-                <span className="text-lg font-bold text-white">النقاط: {score}</span>
+      {gamePhase === 'setup' && (
+        <div className="grid lg:grid-cols-2 gap-8">
+          <Card>
+            <h3 className="text-xl font-bold text-white mb-4">إضافة اللاعبين</h3>
+            <div className="space-y-4">
+              <div className="flex space-x-2 rtl:space-x-reverse">
+                <input
+                  type="text"
+                  value={newPlayerName}
+                  onChange={(e) => setNewPlayerName(e.target.value)}
+                  placeholder="اسم اللاعب"
+                  className="flex-1 px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-white/50 focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                  onKeyPress={(e) => e.key === 'Enter' && addPlayer()}
+                />
+                <Button onClick={addPlayer} size="sm" variant="glass">
+                  <Plus className="w-4 h-4" />
+                </Button>
               </div>
-              <div className="flex items-center gap-2">
-                <Heart className="text-red-400" size={20} />
-                <span className="text-lg font-bold text-white">المحاولات: {maxWrongGuesses - wrongGuesses}</span>
+              
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {players.map((player) => (
+                  <div key={player.id} className="flex justify-between items-center p-3 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
+                    <span className="font-medium text-white">{player.name}</span>
+                    <button
+                      onClick={() => removePlayer(player.id)}
+                      className="text-red-400 hover:text-red-300 transition-colors p-1 rounded-lg hover:bg-red-500/20"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
               </div>
+              
+              <p className="text-sm text-white/70">
+                عدد اللاعبين: {players.length}
+              </p>
+            </div>
+          </Card>
+          
+          <Card>
+            <h3 className="text-xl font-bold text-white mb-4">اختر اللعبة</h3>
+            <div className="space-y-4">
+              <div className="p-4 border border-white/20 rounded-xl bg-white/5 backdrop-blur-sm">
+                <h4 className="font-bold text-white mb-2">لعبة الذئب والقرية</h4>
+                <p className="text-sm text-white/70 mb-3">
+                  لعبة استراتيجية مثيرة حيث يحاول الذئاب القضاء على القرويين
+                </p>
+                <p className="text-xs text-white/50 mb-3">
+                  الحد الأدنى: 4 لاعبين
+                </p>
+                <Button 
+                  onClick={startLoupGarou} 
+                  disabled={players.length < 4}
+                  className="w-full"
+                  variant="glass"
+                >
+                  ابدأ اللعبة
+                </Button>
+              </div>
+              
+              <div className="p-4 border border-white/20 rounded-xl bg-white/5 backdrop-blur-sm">
+                <h4 className="font-bold text-white mb-2">ماكش من الحومة</h4>
+                <p className="text-sm text-white/70 mb-3">
+                  لعبة ممتعة حيث يحاول اللاعبون اكتشاف من هو الغريب بينهم
+                </p>
+                <p className="text-xs text-white/50 mb-3">
+                  الحد الأدنى: 3 لاعبين
+                </p>
+                <Button 
+                  onClick={startMakeshGame} 
+                  disabled={players.length < 3}
+                  variant="success"
+                  className="w-full"
+                >
+                  ابدأ اللعبة
+                </Button>
+              </div>
+
+              <div className="p-4 border border-white/20 rounded-xl bg-white/5 backdrop-blur-sm">
+                <h4 className="font-bold text-white mb-2">لعبة الأحرف الأولى</h4>
+                <p className="text-sm text-white/70 mb-3">
+                  اذكر كلمات تبدأ بحرف معين في فئات مختلفة (جماد، نبات، حيوان...)
+                </p>
+                <p className="text-xs text-white/50 mb-3">
+                  الحد الأدنى: 2 لاعبين
+                </p>
+                <Button 
+                  onClick={startLetterGame} 
+                  disabled={players.length < 2}
+                  variant="outline"
+                  className="w-full"
+                >
+                  ابدأ اللعبة
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+      
+      {gamePhase === 'playing' && (currentGame === 'loup-garou' || currentGame === 'makesh') && (
+        <Card className="max-w-4xl mx-auto">
+          <div className="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-4 sm:space-y-0">
+            <h3 className="text-2xl font-bold text-white">
+              {currentGame === 'loup-garou' ? 'لعبة الذئب والقرية' : 'ماكش من الحومة'}
+            </h3>
+            <div className="flex items-center space-x-2 rtl:space-x-reverse">
+              <Button onClick={() => setShowAllCards(!showAllCards)} variant="outline" size="sm">
+                {showAllCards ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showAllCards ? 'إخفاء الكل' : 'عرض الكل'}
+              </Button>
+              <Button onClick={resetGame} variant="secondary" size="sm">
+                <RotateCcw className="w-4 h-4 ml-2" />
+                إعادة تشغيل
+              </Button>
             </div>
           </div>
           
-          <div className="space-y-4 md:space-y-6">
-            <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl p-4 md:p-6 text-center">
-              <h2 className="text-2xl md:text-4xl font-bold text-white font-mono tracking-wider">
-                {displayWord()}
-              </h2>
+          {!showAllCards ? (
+            <div className="text-center space-y-6">
+              <div className="flex justify-center items-center space-x-4 rtl:space-x-reverse">
+                <Button onClick={prevPlayer} variant="glass" size="sm">
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+                <span className="text-white font-medium">
+                  {currentPlayerIndex + 1} من {players.length}
+                </span>
+                <Button onClick={nextPlayer} variant="glass" size="sm">
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              <div className="max-w-sm mx-auto">
+                <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20">
+                  <h4 className="text-2xl font-bold text-white mb-4">
+                    {players[currentPlayerIndex]?.name}
+                  </h4>
+                  
+                  {players[currentPlayerIndex]?.revealed ? (
+                    <div className="space-y-4">
+                      <div className={`px-4 py-2 rounded-xl text-lg font-bold ${
+                        players[currentPlayerIndex]?.role === 'ذئب' || players[currentPlayerIndex]?.role === 'الغريب'
+                          ? 'bg-red-500/30 text-red-100 border border-red-400/50'
+                          : 'bg-blue-500/30 text-blue-100 border border-blue-400/50'
+                      }`}>
+                        {players[currentPlayerIndex]?.role}
+                      </div>
+                      <Button 
+                        onClick={() => togglePlayerReveal(players[currentPlayerIndex].id)} 
+                        variant="secondary" 
+                        size="sm"
+                      >
+                        إخفاء الدور
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button 
+                      onClick={() => togglePlayerReveal(players[currentPlayerIndex].id)} 
+                      variant="glass"
+                    >
+                      اضغط لرؤية دورك
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {players.map((player) => (
+                <div key={player.id} className="p-4 bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-bold text-white">{player.name}</span>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      player.role === 'ذئب' || player.role === 'الغريب'
+                        ? 'bg-red-500/30 text-red-100 border border-red-400/50'
+                        : 'bg-blue-500/30 text-blue-100 border border-blue-400/50'
+                    }`}>
+                      {player.role}
+                    </span>
+                  </div>
+                  {currentGame === 'loup-garou' && (
+                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                      <div className={`w-3 h-3 rounded-full ${
+                        player.isAlive ? 'bg-green-400' : 'bg-red-400'
+                      }`}></div>
+                      <span className="text-sm text-white/70">
+                        {player.isAlive ? 'حي' : 'ميت'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <div className={`mt-6 p-4 rounded-2xl backdrop-blur-sm border ${
+            currentGame === 'loup-garou' 
+              ? 'bg-blue-500/20 border-blue-400/50' 
+              : 'bg-green-500/20 border-green-400/50'
+          }`}>
+            <h4 className={`font-bold mb-2 ${
+              currentGame === 'loup-garou' ? 'text-blue-100' : 'text-green-100'
+            }`}>
+              قواعد اللعبة:
+            </h4>
+            <ul className={`text-sm space-y-1 ${
+              currentGame === 'loup-garou' ? 'text-blue-200' : 'text-green-200'
+            }`}>
+              {currentGame === 'loup-garou' ? (
+                <>
+                  <li>• الذئاب يحاولون القضاء على القرويين</li>
+                  <li>• العراف يمكنه معرفة هوية لاعب واحد كل ليلة</li>
+                  <li>• الطبيب يمكنه حماية لاعب واحد كل ليلة</li>
+                  <li>• الهدف: القضاء على جميع الذئاب أو جميع القرويين</li>
+                </>
+              ) : (
+                <>
+                  <li>• هناك لاعب واحد "غريب" والباقي "من الحومة"</li>
+                  <li>• الهدف: اكتشاف من هو الغريب</li>
+                  <li>• الغريب يحاول أن يندمج مع المجموعة</li>
+                  <li>• اللاعبون يصوتون لاختيار الغريب</li>
+                </>
+              )}
+            </ul>
+          </div>
+        </Card>
+      )}
+
+      {gamePhase === 'playing' && currentGame === 'letters' && (
+        <Card className="max-w-4xl mx-auto">
+          <div className="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-4 sm:space-y-0">
+            <h3 className="text-2xl font-bold text-white">لعبة الأحرف الأولى</h3>
+            <div className="flex items-center space-x-4 rtl:space-x-reverse">
+              <div className={`px-4 py-2 rounded-xl font-bold ${
+                gameTimer > 30 ? 'bg-green-500/30 text-green-100' :
+                gameTimer > 10 ? 'bg-yellow-500/30 text-yellow-100' :
+                'bg-red-500/30 text-red-100'
+              }`}>
+                {gameTimer}s
+              </div>
+              <Button onClick={resetGame} variant="secondary" size="sm">
+                <RotateCcw className="w-4 h-4 ml-2" />
+                إعادة تشغيل
+              </Button>
+            </div>
+          </div>
+          
+          <div className="text-center space-y-6">
+            <div className="bg-gradient-to-r from-purple-500/30 to-pink-500/30 backdrop-blur-sm rounded-3xl p-8 border border-purple-400/50">
+              <h4 className="text-4xl font-bold text-white mb-4">الحرف: {currentLetter}</h4>
+              <h5 className="text-2xl font-semibold text-purple-100 mb-6">
+                الفئة: {categories[currentCategory]}
+              </h5>
+              
+              <div className="flex justify-center space-x-4 rtl:space-x-reverse">
+                <Button 
+                  onClick={() => setCurrentCategory((prev) => (prev + 1) % categories.length)}
+                  variant="glass"
+                >
+                  الفئة التالية
+                </Button>
+                <Button 
+                  onClick={() => {
+                    const newLetter = arabicLetters[Math.floor(Math.random() * arabicLetters.length)];
+                    setCurrentLetter(newLetter);
+                    setGameTimer(60);
+                  }}
+                  variant="outline"
+                >
+                  <Shuffle className="w-4 h-4 ml-2" />
+                  حرف جديد
+                </Button>
+                <Button 
+                  onClick={() => setTimerActive(!timerActive)}
+                  variant={timerActive ? "danger" : "success"}
+                >
+                  {timerActive ? 'إيقاف' : 'بدء'} المؤقت
+                </Button>
+              </div>
             </div>
             
-            {gameWon && (
-              <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-4 md:p-6 text-center">
-                <h3 className="text-xl md:text-2xl font-bold text-white mb-2">🎉 مبروك!</h3>
-                <p className="text-white">لقد خمنت الكلمة بنجاح!</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+              {categories.map((category, index) => (
                 <button
-                  onClick={startNewGame}
-                  className="mt-4 bg-white/20 backdrop-blur-sm text-white px-4 md:px-6 py-2 md:py-3 rounded-xl hover:bg-white/30 transition-all duration-300 text-sm md:text-base"
+                  key={index}
+                  onClick={() => setCurrentCategory(index)}
+                  className={`p-3 rounded-xl transition-all duration-300 ${
+                    currentCategory === index
+                      ? 'bg-purple-500/30 text-purple-100 border border-purple-400/50 scale-105'
+                      : 'bg-white/10 text-white/70 border border-white/20 hover:bg-white/20'
+                  }`}
                 >
-                  كلمة جديدة 🔄
-                </button>
-              </div>
-            )}
-            
-            {gameLost && (
-              <div className="bg-gradient-to-r from-red-500 to-pink-600 rounded-2xl p-4 md:p-6 text-center">
-                <h3 className="text-xl md:text-2xl font-bold text-white mb-2">😞 انتهت المحاولات</h3>
-                <p className="text-white mb-2">الكلمة كانت: <strong>{currentWord}</strong></p>
-                <button
-                  onClick={startNewGame}
-                  className="mt-4 bg-white/20 backdrop-blur-sm text-white px-4 md:px-6 py-2 md:py-3 rounded-xl hover:bg-white/30 transition-all duration-300 text-sm md:text-base"
-                >
-                  محاولة جديدة 🔄
-                </button>
-              </div>
-            )}
-            
-            <div className="grid grid-cols-5 md:grid-cols-7 gap-2">
-              {arabicLetters.map(letter => (
-                <button
-                  key={letter}
-                  onClick={() => guessLetter(letter)}
-                  disabled={guessedLetters.includes(letter) || gameWon || gameLost}
-                  className={`p-2 md:p-3 rounded-xl font-bold transition-all duration-300 text-sm md:text-base ${
-                    guessedLetters.includes(letter)
-                      ? currentWord.includes(letter)
-                        ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white'
-                        : 'bg-gradient-to-r from-red-500 to-pink-600 text-white'
-                      : 'bg-white/20 text-white hover:bg-white/30'
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {letter}
+                  {category}
                 </button>
               ))}
             </div>
           </div>
+          
+          <div className="mt-6 p-4 bg-purple-500/20 rounded-2xl backdrop-blur-sm border border-purple-400/50">
+            <h4 className="font-bold text-purple-100 mb-2">قواعد اللعبة:</h4>
+            <ul className="text-sm text-purple-200 space-y-1">
+              <li>• اذكر كلمة تبدأ بالحرف المحدد في الفئة المطلوبة</li>
+              <li>• لا يمكن تكرار الكلمات</li>
+              <li>• من لا يستطيع إيجاد كلمة يخرج من الجولة</li>
+              <li>• الفائز هو آخر لاعب متبقي</li>
+            </ul>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+
+  const renderLeaderboard = () => (
+    <div className="space-y-8">
+      <div className="text-center">
+        <h2 className="text-3xl font-bold text-white mb-4 drop-shadow-lg">المتصدرين</h2>
+        <p className="text-white/80 drop-shadow-md">أفضل اللاعبين في المنصة</p>
+      </div>
+      
+      <Card className="max-w-2xl mx-auto">
+        <div className="text-center py-12">
+          <Trophy className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
+          <h3 className="text-xl font-bold text-white mb-2">قريباً</h3>
+          <p className="text-white/70">
+            سيتم إضافة نظام المتصدرين قريباً لتتبع أفضل النتائج
+          </p>
         </div>
+      </Card>
+    </div>
+  );
+
+  return (
+    <div className={`min-h-screen transition-all duration-500 ${
+      isDarkMode 
+        ? 'dark bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900' 
+        : 'bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500'
+    }`}>
+      {/* Animated background elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl animate-pulse delay-500"></div>
+      </div>
+
+      <div className="relative z-10">
+        {renderNavigation()}
+        
+        <main className="max-w-7xl mx-auto px-4 py-8">
+          {currentPage === 'home' && renderHomePage()}
+          {currentPage === 'individual' && renderIndividualGames()}
+          {currentPage === 'group' && renderGroupGames()}
+          {currentPage === 'leaderboard' && renderLeaderboard()}
+        </main>
       </div>
     </div>
   );
 };
-
-function App() {
-  const [currentGame, setCurrentGame] = useState(null);
-
-  const games = [
-    {
-      id: 'bara-salfa',
-      title: 'برا السالفة',
-      description: 'اللعبة الجزائرية الأصيلة للذكاء والخداع. اكتشف من هو الدخيل قبل أن يكتشف الكلمة السرية!',
-      icon: Brain,
-      players: '3-8 لاعبين',
-      difficulty: 4,
-      featured: true,
-      category: 'group'
-    },
-    {
-      id: 'letters',
-      title: 'حرف - حيوان - جماد',
-      description: 'اللعبة الكلاسيكية بأسلوب عصري. اختبر سرعة بديهتك ومعلوماتك مع العد التنازلي!',
-      icon: Lightbulb,
-      players: '1+ لاعب',
-      difficulty: 2,
-      category: 'single'
-    },
-    {
-      id: 'riddles',
-      title: 'ألغاز الحومة',
-      description: 'مجموعة من الألغاز الجزائرية الشعبية لتحدي عقلك وتنمية ذكائك.',
-      icon: HelpCircle,
-      players: '1+ لاعب',
-      difficulty: 3,
-      category: 'single'
-    },
-    {
-      id: 'memory',
-      title: 'ذاكرة الأبطال',
-      description: 'اختبر قوة ذاكرتك مع هذه اللعبة المسلية والمفيدة. اقلب البطاقات وابحث عن الأزواج!',
-      icon: Medal,
-      players: '1+ لاعب',
-      difficulty: 2,
-      category: 'single'
-    },
-    {
-      id: 'math',
-      title: 'الرياضيات السريعة',
-      description: 'تحدى نفسك في حل المسائل الرياضية بأسرع وقت ممكن!',
-      icon: Zap,
-      players: '1+ لاعب',
-      difficulty: 3,
-      category: 'single'
-    },
-    {
-      id: 'word-guess',
-      title: 'تخمين الكلمة',
-      description: 'خمن الكلمة المخفية حرف بحرف قبل أن تنتهي المحاولات!',
-      icon: Target,
-      players: '1+ لاعب',
-      difficulty: 2,
-      category: 'single'
-    }
-  ];
-
-  const renderGame = () => {
-    switch (currentGame) {
-      case 'bara-salfa':
-        return <BaraSalfaGame onBack={() => setCurrentGame(null)} />;
-      case 'letters':
-        return <LetterGame onBack={() => setCurrentGame(null)} />;
-      case 'riddles':
-        return <RiddlesGame onBack={() => setCurrentGame(null)} />;
-      case 'memory':
-        return <MemoryGame onBack={() => setCurrentGame(null)} />;
-      case 'math':
-        return <MathGame onBack={() => setCurrentGame(null)} />;
-      case 'word-guess':
-        return <WordGuessGame onBack={() => setCurrentGame(null)} />;
-      default:
-        return null;
-    }
-  };
-
-  if (currentGame) {
-    return renderGame();
-  }
-
-  const singlePlayerGames = games.filter(game => game.category === 'single');
-  const groupGames = games.filter(game => game.category === 'group');
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
-      {/* Header */}
-      <header className="bg-white/10 backdrop-blur-lg border-b border-white/20 sticky top-0 z-50">
-        <div className="container mx-auto px-4 md:px-6 py-3 md:py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 md:gap-4">
-              <div className="bg-gradient-to-br from-yellow-400 to-orange-500 p-2 md:p-3 rounded-2xl">
-                <Brain size={window.innerWidth < 768 ? 24 : 32} className="text-white" />
-              </div>
-              <div>
-                <h1 className="text-lg md:text-2xl font-bold text-white">خمم فيها</h1>
-                <p className="text-white/70 text-xs md:text-sm">منصة الألعاب الذكية</p>
-              </div>
-            </div>
-            <div className="hidden md:flex items-center gap-6">
-              <div className="flex items-center gap-2 text-white/80">
-                <Users size={20} />
-                <span>ألعاب جماعية</span>
-              </div>
-              <div className="flex items-center gap-2 text-white/80">
-                <User size={20} />
-                <span>ألعاب فردية</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Hero Section */}
-      <section className="py-12 md:py-20 text-center">
-        <div className="container mx-auto px-4 md:px-6">
-          <h2 className="text-3xl md:text-7xl font-bold text-white mb-4 md:mb-6 leading-tight">
-            أهلاً وسهلاً في
-            <span className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent block md:inline"> خمم فيها</span>
-          </h2>
-          <p className="text-base md:text-xl text-white/80 mb-8 md:mb-12 max-w-3xl mx-auto leading-relaxed">
-            منصة الألعاب الذكية الأولى للتسلية والذكاء. استمتع بألعاب متنوعة تحفز العقل مع أصدقائك وعائلتك
-          </p>
-          <div className="flex flex-wrap justify-center gap-2 md:gap-4">
-            <div className="bg-white/20 backdrop-blur-sm rounded-full px-3 md:px-6 py-2 md:py-3 text-white border border-white/30 text-xs md:text-base">
-              🎭 برا السالفة المحسنة
-            </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-full px-3 md:px-6 py-2 md:py-3 text-white border border-white/30 text-xs md:text-base">
-              🎮 6 ألعاب متنوعة
-            </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-full px-3 md:px-6 py-2 md:py-3 text-white border border-white/30 text-xs md:text-base">
-              📱 متجاوب مع الهواتف
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Group Games Section */}
-      <section className="py-8 md:py-16">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="text-center mb-8 md:mb-16">
-            <h3 className="text-2xl md:text-4xl font-bold text-white mb-2 md:mb-4">👥 الألعاب الجماعية</h3>
-            <p className="text-white/80 text-sm md:text-lg max-w-2xl mx-auto">
-              العب مع الأصدقاء والعائلة واستمتع بوقت رائع
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 max-w-6xl mx-auto">
-            {groupGames.map((game) => (
-              <GameCard
-                key={game.id}
-                {...game}
-                onClick={() => setCurrentGame(game.id)}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Single Player Games Section */}
-      <section className="py-8 md:py-16 bg-white/5 backdrop-blur-sm">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="text-center mb-8 md:mb-16">
-            <h3 className="text-2xl md:text-4xl font-bold text-white mb-2 md:mb-4">👤 الألعاب الفردية</h3>
-            <p className="text-white/80 text-sm md:text-lg max-w-2xl mx-auto">
-              تحدى نفسك وطور مهاراتك الذهنية
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 max-w-6xl mx-auto">
-            {singlePlayerGames.map((game) => (
-              <GameCard
-                key={game.id}
-                {...game}
-                onClick={() => setCurrentGame(game.id)}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-12 md:py-20">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="text-center mb-8 md:mb-16">
-            <h3 className="text-2xl md:text-4xl font-bold text-white mb-2 md:mb-4">لماذا خمم فيها؟</h3>
-          </div>
-          
-          <div className="grid md:grid-cols-3 gap-6 md:gap-8 max-w-4xl mx-auto">
-            <div className="text-center group">
-              <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-3 md:p-4 rounded-2xl mx-auto w-12 h-12 md:w-16 md:h-16 flex items-center justify-center mb-4 md:mb-6 group-hover:scale-110 transition-all duration-300">
-                <Brain size={window.innerWidth < 768 ? 24 : 32} className="text-white" />
-              </div>
-              <h4 className="text-lg md:text-xl font-bold text-white mb-2 md:mb-3">تنمية الذكاء</h4>
-              <p className="text-white/80 text-sm md:text-base">ألعاب مصممة لتحفيز التفكير الإبداعي والمنطقي</p>
-            </div>
-            
-            <div className="text-center group">
-              <div className="bg-gradient-to-br from-blue-500 to-purple-600 p-3 md:p-4 rounded-2xl mx-auto w-12 h-12 md:w-16 md:h-16 flex items-center justify-center mb-4 md:mb-6 group-hover:scale-110 transition-all duration-300">
-                <Users size={window.innerWidth < 768 ? 24 : 32} className="text-white" />
-              </div>
-              <h4 className="text-lg md:text-xl font-bold text-white mb-2 md:mb-3">تفاعل اجتماعي</h4>
-              <p className="text-white/80 text-sm md:text-base">استمتع مع الأصدقاء والعائلة في جو من المرح</p>
-            </div>
-            
-            <div className="text-center group">
-              <div className="bg-gradient-to-br from-orange-500 to-red-600 p-3 md:p-4 rounded-2xl mx-auto w-12 h-12 md:w-16 md:h-16 flex items-center justify-center mb-4 md:mb-6 group-hover:scale-110 transition-all duration-300">
-                <Star size={window.innerWidth < 768 ? 24 : 32} className="text-white" />
-              </div>
-              <h4 className="text-lg md:text-xl font-bold text-white mb-2 md:mb-3">تجربة متميزة</h4>
-              <p className="text-white/80 text-sm md:text-base">ألعاب متنوعة بتصميم حديث ومتجاوب</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-black/20 backdrop-blur-sm py-8 md:py-12 border-t border-white/20">
-        <div className="container mx-auto px-4 md:px-6 text-center">
-          <div className="flex items-center justify-center gap-2 md:gap-4 mb-4 md:mb-6">
-            <div className="bg-gradient-to-br from-yellow-400 to-orange-500 p-2 rounded-xl">
-              <Brain size={20} className="text-white" />
-            </div>
-            <h4 className="text-lg md:text-xl font-bold text-white">خمم فيها</h4>
-          </div>
-          <p className="text-white/70 mb-2 md:mb-4 text-sm md:text-base">منصة الألعاب الذكية الأولى</p>
-          <p className="text-white/50 text-xs md:text-sm">© 2025 خمم فيها - جميع الحقوق محفوظة</p>
-        </div>
-      </footer>
-    </div>
-  );
-}
 
 export default App;
